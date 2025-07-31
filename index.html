@@ -516,11 +516,8 @@
                 }
                 // If it's '유리병' but not a specific auto-fill unit, do nothing to oneBatch/dailyCapacity
                 // This ensures manually entered values for custom units are retained.
-            } else {
-                // If packaging type is NOT '유리병', these fields should be cleared
-                oneBatchInput.value = '';
-                dailyCapacityInput.value = '';
             }
+            // The problematic else block that cleared oneBatchInput and dailyCapacityInput has been removed.
             saveCurrentWorkingConfig(); // Auto-save
         });
 
@@ -569,17 +566,27 @@
             saveCurrentWorkingConfig();
         });
 
-        // compressImage function removed as file upload is removed.
-        // handleFileChange function removed as file upload is removed.
-        // uploadImageToFirebaseStorage function removed as file upload is removed.
-        // handleImageDrop function removed as file drag-and-drop is removed.
+        // New: Event Listeners for Image Description textareas
+        productImageDescriptionInput.addEventListener('input', (event) => {
+            productImageDescription = event.target.value;
+            saveCurrentWorkingConfig();
+        });
+        koreanLabelImageDescriptionInput.addEventListener('input', (event) => {
+            koreanLabelImageDescription = event.target.value;
+            saveCurrentWorkingConfig();
+        });
+        cookingImageDescriptionInput.addEventListener('input', (event) => {
+            cookingImageDescription = event.target.value;
+            saveCurrentWorkingConfig();
+        });
+
 
         /**
          * Clears an image from the UI and state.
          * @param {string} imageType - 'product', 'korean_label', or 'cooking'.
          */
         async function clearImage(imageType) {
-            let targetImgElement, targetDropText, targetUrlInput; // targetFileInput 제거
+            let targetImgElement, targetDropText, targetUrlInput;
             if (imageType === 'product') {
                 targetImgElement = productImageDisplay;
                 targetDropText = productImageDropText;
@@ -597,7 +604,6 @@
                 cookingImageUrl = '';
             }
             updateImageDisplay(targetImgElement, '', targetDropText, targetUrlInput); // Set to placeholder, clear URL input
-            // targetFileInput.value = ''; // 파일 입력 필드 클리어 제거
             await saveCurrentWorkingConfig(); // Save the cleared state
             showMessage(`${imageType} 이미지가 지워졌습니다.`, 'info');
         }
@@ -902,9 +908,7 @@
                 subMaterialsSection.classList.remove('hidden');
             } else {
                 subMaterialsSection.classList.add('hidden');
-                // When type is not '유리병', clear capacity fields as they are specific to glass bottles
-                oneBatchInput.value = '';
-                dailyCapacityInput.value = '';
+                // Removed the lines that cleared oneBatchInput and dailyCapacityInput here.
             }
             packagingUnitInput.value = unitToSet; // Set the value of the input field
             selectedPackagingUnit = unitToSet; // Update the internal state
@@ -1257,7 +1261,6 @@
          */
         function exportFlowchartAsImage() {
             const elementsToHide = [
-                // productFileInput, cookingFileInput, koreanLabelFileInput, // 파일 입력 필드 제거
                 productImageDropText, cookingImageDropText, koreanLabelImageDropText,
             ];
             const memoTextareas = document.querySelectorAll('#process-list textarea');
@@ -1324,7 +1327,7 @@
             if (type === 'success') {
                 statusMessage.classList.add('text-green-600');
             } else if (type === 'error') {
-                statusStatus.classList.add('text-red-600');
+                statusMessage.classList.add('text-red-600');
             } else { // info
                 statusMessage.classList.add('text-blue-600');
             }
@@ -1442,7 +1445,7 @@
         // Expose functions to the global scope so they can be called from HTML attributes
         window.addProcess = addProcess;
         window.saveConfiguration = saveConfiguration;
-        window.showLoadConfigModal = showLoadConfigModal;
+        window.showLoadConfigModal = showLoadConfigModal; // Corrected typo here
         window.exportFlowchartAsImage = exportFlowchartAsImage;
         window.updateFlowchartColors = updateFlowchartColors; 
         window.toggleProcess = toggleProcess;
