@@ -240,10 +240,15 @@
 
                 <!-- Action Buttons -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <button onclick="saveCurrentConfigToLocalStorage()"
+                    <button onclick="saveConfiguration()"
                             class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-5 rounded-lg shadow-md transition duration-200 transform hover:scale-105">
                         <span class="hidden md:inline">현재 구성 저장</span>
                         <span class="md:hidden">저장</span>
+                    </button>
+                    <button onclick="showLoadConfigModal()"
+                            class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-5 rounded-lg shadow-md transition duration-200 transform hover:scale-105">
+                        <span class="hidden md:inline">구성 불러오기</span>
+                        <span class="md:hidden">불러오기</span>
                     </button>
                     <div class="col-span-full flex items-center gap-2">
                         <label for="node-color" class="text-gray-700 font-medium">노드 색상:</label>
@@ -271,11 +276,25 @@
         </div>
     </div>
 
-    <!-- Load Configuration Modal (Removed as it's now single-user auto-save/load) -->
+    <!-- Load Configuration Modal -->
+    <div id="load-config-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <h3 class="text-xl font-bold mb-4">구성 불러오기</h3>
+            <div class="mb-4">
+                <label for="saved-configs-select" class="block text-gray-700 text-sm font-bold mb-2">저장된 구성 선택:</label>
+                <select id="saved-configs-select" class="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                    <!-- Options will be populated by JS -->
+                </select>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button id="load-selected-config-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200">불러오기</button>
+                <button id="delete-selected-config-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition duration-200">삭제</button>
+                <button id="cancel-load-config-btn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded transition duration-200">취소</button>
+            </div>
+        </div>
+    </div>
 
     <script type="module">
-        // Firebase SDK Imports (Removed)
-
         // Mermaid.js configuration (initialized after HTML load)
         mermaid.initialize({
             startOnLoad: true,
@@ -341,8 +360,16 @@
         // New DOM reference for Sub-materials section
         const subMaterialsSection = document.getElementById('sub-materials-section');
 
-        // Local Storage Key
-        const LOCAL_STORAGE_KEY = 'flowchartSimulatorConfig';
+
+        // Modal DOM elements
+        const loadConfigModal = document.getElementById('load-config-modal');
+        const savedConfigsSelect = document.getElementById('saved-configs-select');
+        const loadSelectedConfigBtn = document.getElementById('load-selected-config-btn');
+        const cancelLoadConfigBtn = document.getElementById('cancel-load-config-btn');
+        const deleteSelectedConfigBtn = document.getElementById('delete-selected-config-btn');
+
+        // Local Storage Key Prefix for multiple configurations
+        const LOCAL_STORAGE_PREFIX = 'flowchart_config_';
 
         // Initial setup - Load from local storage on DOMContentLoaded
         document.addEventListener('DOMContentLoaded', () => {
@@ -351,8 +378,6 @@
             koreanLabelImageDisplay.dataset.placeholderSrc = koreanLabelImageDisplay.src;
             cookingImageDisplay.dataset.placeholderSrc = cookingImageDisplay.src;
 
-            loadConfigFromLocalStorage();
-            
             // Load saved node color
             const savedColor = localStorage.getItem('flowchartNodeColor');
             if (savedColor) {
@@ -360,24 +385,21 @@
                 updateFlowchartColors(savedColor);
             }
             // Initial render of process list (might be empty)
-            renderProcessList();
+            renderProcessList(); // Render empty or default state initially
         });
 
-        // Event Listeners for input changes (trigger auto-save)
+        // Event Listeners for input changes (trigger auto-save is removed, now explicit save)
         productNameInput.addEventListener('input', (event) => {
             productName = event.target.value.trim();
-            saveCurrentConfigToLocalStorage();
         });
 
         factorySelect.addEventListener('change', (event) => {
             selectedFactory = event.target.value;
-            saveCurrentConfigToLocalStorage();
         });
 
         packagingTypeSelect.addEventListener('change', (event) => {
             selectedPackagingType = event.target.value;
             updatePackagingUnitOptions(selectedPackagingType); // Update options first
-            saveCurrentConfigToLocalStorage();
         });
 
         packagingUnitSelect.addEventListener('change', (event) => {
@@ -392,55 +414,45 @@
                 oneBatchInput.value = '';
                 dailyCapacityInput.value = '';
             }
-            saveCurrentConfigToLocalStorage();
         });
 
         sterilizationTypeSelect.addEventListener('change', (event) => {
             selectedSterilizationType = event.target.value;
-            saveCurrentConfigToLocalStorage();
         });
 
         oneBatchInput.addEventListener('input', (event) => {
             oneBatchAmount = event.target.value.trim();
-            saveCurrentConfigToLocalStorage();
         });
 
         dailyCapacityInput.addEventListener('input', (event) => {
             dailyCapacity = event.target.value.trim();
-            saveCurrentConfigToLocalStorage();
         });
 
         productImageUrlInput.addEventListener('input', (event) => {
             productImageUrl = event.target.value.trim();
             updateImageDisplay(productImageDisplay, productImageUrlInput, productImageUrl, productImageDropText);
-            saveCurrentConfigToLocalStorage();
         });
 
         koreanLabelImageUrlInput.addEventListener('input', (event) => {
             koreanLabelImageUrl = event.target.value.trim();
             updateImageDisplay(koreanLabelImageDisplay, koreanLabelImageUrlInput, koreanLabelImageUrl, koreanLabelImageDropText);
-            saveCurrentConfigToLocalStorage();
         });
 
         cookingImageUrlInput.addEventListener('input', (event) => {
             cookingImageUrl = event.target.value.trim();
             updateImageDisplay(cookingImageDisplay, cookingImageUrlInput, cookingImageUrl, cookingImageDropText);
-            saveCurrentConfigToLocalStorage();
         });
 
         productImageDescriptionInput.addEventListener('input', (event) => {
             productImageDescription = event.target.value;
-            saveCurrentConfigToLocalStorage();
         });
 
         koreanLabelImageDescriptionInput.addEventListener('input', (event) => {
             koreanLabelImageDescription = event.target.value;
-            saveCurrentConfigToLocalStorage();
         });
 
         cookingImageDescriptionInput.addEventListener('input', (event) => {
             cookingImageDescription = event.target.value;
-            saveCurrentConfigToLocalStorage();
         });
 
         // Attach drag and drop listeners for image zones
@@ -470,6 +482,30 @@
             cookingImageDropText.classList.remove('hidden');
         };
 
+
+        // Modal event listeners
+        cancelLoadConfigBtn.addEventListener('click', () => {
+            loadConfigModal.classList.add('hidden');
+        });
+
+        loadSelectedConfigBtn.addEventListener('click', () => {
+            const configName = savedConfigsSelect.value;
+            if (configName) {
+                loadConfiguration(configName);
+                loadConfigModal.classList.add('hidden');
+            } else {
+                showMessage('불러올 구성을 선택해주세요.', 'error');
+            }
+        });
+
+        deleteSelectedConfigBtn.addEventListener('click', () => {
+            const configName = savedConfigsSelect.value;
+            if (configName) {
+                deleteConfiguration(configName);
+            } else {
+                showMessage('삭제할 구성을 선택해주세요.', 'error');
+            }
+        });
 
         /**
          * Renders the process list and sets up drag-and-drop events.
@@ -542,7 +578,7 @@
                     const currentProcess = processes.find(p => p.id === process.id);
                     if (currentProcess) {
                         currentProcess.memo = event.target.value;
-                        saveCurrentConfigToLocalStorage(); // Auto-save on memo change
+                        // No auto-save on memo change for explicit save model
                     }
                 });
                 memoContainer.appendChild(memoTextarea);
@@ -605,7 +641,7 @@
         }
 
         /**
-         * Updates the process name and saves to local storage.
+         * Updates the process name.
          * @param {number} id - Process ID
          * @param {string} newName - New process name
          */
@@ -614,12 +650,11 @@
             if (process) {
                 process.name = newName.trim();
                 renderFlowchart();
-                saveCurrentConfigToLocalStorage(); // Save to local storage
             }
         }
 
         /**
-         * Adds a new process and saves to local storage.
+         * Adds a new process.
          */
         function addProcess() {
             const name = newProcessInput.value.trim();
@@ -629,7 +664,6 @@
                 newProcessInput.value = '';
                 console.log("공정 추가됨:", processes);
                 renderProcessList();
-                saveCurrentConfigToLocalStorage(); // Save to local storage
                 showMessage('공정이 추가되었습니다!', 'success');
             } else {
                 showMessage('공정 이름을 입력해주세요.', 'error');
@@ -637,7 +671,7 @@
         }
 
         /**
-         * Toggles the selected state of a process and saves to local storage.
+         * Toggles the selected state of a process.
          * @param {number} id - Process ID
          */
         function toggleProcess(id) {
@@ -645,18 +679,16 @@
             if (process) {
                 process.selected = !process.selected;
                 renderFlowchart();
-                saveCurrentConfigToLocalStorage(); // Save to local storage
             }
         }
 
         /**
-         * Deletes a process and saves to local storage.
+         * Deletes a process.
          * @param {number} id - Process ID
          */
         function deleteProcess(id) {
             processes = processes.filter(p => p.id !== id);
             renderProcessList();
-            saveCurrentConfigToLocalStorage(); // Save to local storage
             showMessage('공정이 삭제되었습니다.', 'success');
         }
 
@@ -780,11 +812,25 @@
             }
         }
 
-
         /**
          * Saves the current configuration to local storage.
          */
-        function saveCurrentConfigToLocalStorage() {
+        function saveConfiguration() {
+            let configName = productName.trim();
+            if (!configName) {
+                configName = prompt('저장할 구성의 이름을 입력해주세요 (필수):');
+                if (!configName) {
+                    showMessage('구성 저장이 취소되었습니다. 이름을 입력해야 합니다.', 'info');
+                    return;
+                }
+                configName = configName.trim();
+            }
+
+            if (!configName) {
+                showMessage('유효한 구성 이름을 입력해주세요.', 'error');
+                return;
+            }
+
             const currentConfig = {
                 processes: processes,
                 productName: productName,
@@ -800,11 +846,11 @@
                 productImageDescription: productImageDescription,
                 koreanLabelImageDescription: koreanLabelImageDescription,
                 cookingImageDescription: cookingImageDescription,
-                lastUpdated: new Date()
+                lastUpdated: new Date().toISOString() // ISO string for easy parsing
             };
             try {
-                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(currentConfig));
-                showMessage('현재 구성이 로컬에 자동 저장되었습니다.', 'success');
+                localStorage.setItem(LOCAL_STORAGE_PREFIX + configName, JSON.stringify(currentConfig));
+                showMessage(`'${configName}' 구성이 로컬에 저장되었습니다.`, 'success');
             } catch (e) {
                 console.error("로컬 저장소 저장 실패:", e);
                 showMessage('로컬 저장소에 저장 실패: ' + e.message, 'error');
@@ -812,11 +858,45 @@
         }
 
         /**
-         * Loads the configuration from local storage.
+         * Populates the modal with saved configurations from local storage.
          */
-        function loadConfigFromLocalStorage() {
+        function showLoadConfigModal() {
+            savedConfigsSelect.innerHTML = '';
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = '-- 저장된 구성 선택 --';
+            savedConfigsSelect.appendChild(defaultOption);
+
+            const savedKeys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith(LOCAL_STORAGE_PREFIX)) {
+                    savedKeys.push(key.substring(LOCAL_STORAGE_PREFIX.length));
+                }
+            }
+
+            if (savedKeys.length === 0) {
+                showMessage('저장된 구성이 없습니다.', 'info');
+                return;
+            }
+
+            savedKeys.sort().forEach(configName => {
+                const option = document.createElement('option');
+                option.value = configName;
+                option.textContent = configName;
+                savedConfigsSelect.appendChild(option);
+            });
+
+            loadConfigModal.classList.remove('hidden');
+        }
+
+        /**
+         * Loads a specific configuration from local storage.
+         * @param {string} configName - The name of the configuration to load.
+         */
+        function loadConfiguration(configName) {
             try {
-                const savedConfig = localStorage.getItem(LOCAL_STORAGE_KEY);
+                const savedConfig = localStorage.getItem(LOCAL_STORAGE_PREFIX + configName);
                 if (savedConfig) {
                     const configToLoad = JSON.parse(savedConfig);
 
@@ -852,13 +932,44 @@
                     cookingImageDescriptionInput.value = cookingImageDescription;
 
                     renderProcessList();
-                    showMessage('이전 구성이 로컬 저장소에서 로드되었습니다.', 'success');
+                    showMessage(`'${configName}' 구성을 불러왔습니다.`, 'success');
                 } else {
-                    showMessage('저장된 구성이 없습니다. 새로운 플로우 차트를 시작하세요.', 'info');
+                    showMessage(`'${configName}' 구성을 찾을 수 없습니다.`, 'error');
                 }
             } catch (e) {
                 console.error("로컬 저장소 로드 실패:", e);
                 showMessage('로컬 저장소 로드에 실패했습니다: ' + e.message, 'error');
+            }
+        }
+
+        /**
+         * Deletes a specific configuration from local storage.
+         * @param {string} configName - The name of the configuration to delete.
+         */
+        function deleteConfiguration(configName) {
+            try {
+                localStorage.removeItem(LOCAL_STORAGE_PREFIX + configName);
+                showMessage(`'${configName}' 구성이 삭제되었습니다.`, 'success');
+                showLoadConfigModal(); // Refresh the list in the modal
+
+                // If the deleted config was currently loaded, clear current UI state
+                if (productName === configName) { // Assuming productName is the current config name
+                    processes = []; productName = ''; selectedFactory = ''; selectedPackagingType = ''; selectedPackagingUnit = ''; selectedSterilizationType = '';
+                    oneBatchAmount = ''; dailyCapacity = ''; productImageUrl = ''; koreanLabelImageUrl = ''; cookingImageUrl = '';
+                    productImageDescription = ''; koreanLabelImageDescription = ''; cookingImageDescription = '';
+                    productNameInput.value = ''; factorySelect.value = ''; packagingTypeSelect.value = ''; sterilizationTypeSelect.value = '';
+                    oneBatchInput.value = ''; dailyCapacityInput.value = '';
+                    updatePackagingUnitOptions('');
+                    updateImageDisplay(productImageDisplay, productImageUrlInput, '', productImageDropText);
+                    updateImageDisplay(koreanLabelImageDisplay, koreanLabelImageUrlInput, '', koreanLabelImageDropText);
+                    updateImageDisplay(cookingImageDisplay, cookingImageUrlInput, '', cookingImageDropText);
+                    productImageDescriptionInput.value = ''; koreanLabelImageDescriptionInput.value = ''; cookingImageDescriptionInput.value = '';
+                    renderProcessList();
+                }
+
+            } catch (e) {
+                console.error("로컬 저장소 삭제 실패:", e);
+                showMessage('로컬 저장소 삭제에 실패했습니다: ' + e.message, 'error');
             }
         }
 
@@ -1016,7 +1127,6 @@
             processes.splice(targetIndex, 0, removed);
 
             renderProcessList();
-            saveCurrentConfigToLocalStorage(); // Save to local storage after reordering
             showMessage('공정 순서가 변경되었습니다.', 'info');
         }
 
@@ -1064,7 +1174,6 @@
                             cookingImageUrl = imageDataUrl;
                             updateImageDisplay(cookingImageDisplay, cookingImageUrlInput, cookingImageUrl, cookingImageDropText);
                         }
-                        saveCurrentConfigToLocalStorage(); // Save to local storage after image drop
                         showMessage('이미지가 성공적으로 추가되었습니다.', 'success');
                     };
                     reader.onerror = () => {
@@ -1079,7 +1188,8 @@
         
         // Expose functions to the global scope so they can be called from HTML attributes
         window.addProcess = addProcess;
-        window.saveCurrentConfigToLocalStorage = saveCurrentConfigToLocalStorage; // Renamed from saveConfiguration
+        window.saveConfiguration = saveConfiguration;
+        window.showLoadConfigModal = showLoadConfigModal;
         window.exportFlowchartAsImage = exportFlowchartAsImage;
         window.updateFlowchartColors = updateFlowchartColors; 
         window.toggleProcess = toggleProcess;
