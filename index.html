@@ -84,7 +84,7 @@
 
         <!-- Product Name, Factory Selection, Packaging Type, Packaging Unit, Sterilization Type, 1 Batch, Daily Capacity -->
         <div class="mb-8 text-center flex flex-col gap-4">
-            <!-- Row 1: Product Name, Factory, Packaging Type -->
+            <!-- Row 1: Product Name, Factory, Packaging Type, Shelf Life & Conditions -->
             <div class="flex flex-col md:flex-row items-center justify-center gap-4">
                 <div class="flex flex-col items-center">
                     <label for="product-name-input" class="block text-xl font-semibold text-gray-700 mb-2">제품명:</label>
@@ -113,18 +113,27 @@
                         <option value="벌크파우치">벌크파우치</option>
                         <option value="튜브">튜브</option>
                         <option value="유리병">유리병</option>
+                        <option value="컵피더">컵피더</option> <!-- Added 컵피더 -->
                     </select>
+                </div>
+                <!-- New: Shelf Life & Conditions -->
+                <div class="flex flex-col items-center">
+                    <label for="shelf-life-input" class="block text-xl font-semibold text-gray-700 mb-2">유통기한:</label>
+                    <input type="text" id="shelf-life-input" placeholder="예: 12개월"
+                           class="w-full max-w-xs p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 text-center text-lg">
+                </div>
+                <div class="flex flex-col items-center">
+                    <label for="conditions-input" class="block text-xl font-semibold text-gray-700 mb-2">조건:</label>
+                    <input type="text" id="conditions-input" placeholder="예: 냉장 보관"
+                           class="w-full max-w-xs p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 text-center text-lg">
                 </div>
             </div>
             <!-- Row 2: Packaging Unit, Sterilization Type, 1 Batch, Daily Capacity -->
             <div class="flex flex-col md:flex-row items-center justify-center gap-4">
                 <div id="packaging-unit-section" class="flex flex-col items-center">
-                    <label for="packaging-unit-select" class="block text-xl font-semibold text-gray-700 mb-2">포장 단위:</label>
-                    <select id="packaging-unit-select"
-                            class="w-full max-w-xs p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 text-center text-lg bg-white">
-                        <option value="">-- 단위 선택 --</option>
-                        <!-- Options for packaging units will be dynamically added/removed by JavaScript -->
-                    </select>
+                    <label for="packaging-unit-input" class="block text-xl font-semibold text-gray-700 mb-2">포장 단위:</label>
+                    <input type="text" id="packaging-unit-input" placeholder="단위 직접 입력..."
+                           class="w-full max-w-xs p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 text-center text-lg">
                 </div>
                 <div class="flex flex-col items-center">
                     <label for="sterilization-type-select" class="block text-xl font-semibold text-gray-700 mb-2">살균 유형:</label>
@@ -167,15 +176,18 @@
         <!-- Photos Section -->
         <div class="mb-8 flex flex-col md:flex-row items-start justify-center gap-6">
             <div class="flex flex-col items-center w-full md:w-1/3">
-                <label id="product-image-url-label" for="product-image-url-input" class="block text-xl font-semibold text-gray-700 mb-2">제품 사진 (URL 또는 드래그 & 드롭):</label>
-                <input type="url" id="product-image-url-input" placeholder="제품 사진 URL을 입력하거나 파일을 여기에 드롭하세요."
-                       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 text-center text-base mb-3">
+                <label for="product-image-url-input" class="block text-xl font-semibold text-gray-700 mb-2">제품 사진 URL (직접 입력):</label>
+                <input type="url" id="product-image-url-input" placeholder="이미지 URL을 붙여넣으세요..."
+                       class="w-full max-w-xs p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 text-center text-lg mb-3">
+
                 <div id="product-image-drop-zone" class="relative w-48 h-48 flex items-center justify-center border-2 border-dashed border-gray-300 rounded-lg bg-gray-100 cursor-pointer hover:border-blue-500 transition duration-200">
                     <img id="product-image-display" src="https://placehold.co/200x200/e0e0e0/000000?text=제품사진" alt="제품 사진"
-                         class="w-full h-full object-contain rounded-lg"
-                         onerror="this.onerror=null;this.src='https://placehold.co/200x200/e0e0e0/000000?text=이미지없음';">
+                         class="w-full h-full object-contain rounded-lg cursor-pointer"
+                         onerror="this.onerror=null;this.src=this.dataset.placeholderSrc; this.nextElementSibling.classList.remove('hidden');"
+                         onclick="openImageInNewTab(this)">
                     <p class="absolute text-gray-500 text-sm pointer-events-none">여기에 이미지 드롭</p>
                 </div>
+                <button onclick="clearImage('product')" class="mt-2 text-red-600 hover:text-red-800 text-sm font-semibold transition duration-200">이미지 지우기</button>
                 <label for="product-image-description" class="block text-lg font-semibold text-gray-700 mt-4 mb-2">제품 사진 설명 (100자 이내):</label>
                 <textarea id="product-image-description" maxlength="100" rows="3"
                           placeholder="제품 사진에 대한 설명을 100자 이내로 입력하세요."
@@ -184,15 +196,18 @@
 
             <!-- Korean Label Photo Section -->
             <div class="flex flex-col items-center w-full md:w-1/3">
-                <label id="korean-label-image-url-label" for="korean-label-image-url-input" class="block text-xl font-semibold text-gray-700 mb-2">한글 라벨 사진 (URL 또는 드래그 & 드롭):</label>
-                <input type="url" id="korean-label-image-url-input" placeholder="한글 라벨 사진 URL을 입력하거나 파일을 여기에 드롭하세요."
-                       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 text-center text-base mb-3">
+                <label for="korean-label-image-url-input" class="block text-xl font-semibold text-gray-700 mb-2">한글 라벨 사진 URL (직접 입력):</label>
+                <input type="url" id="korean-label-image-url-input" placeholder="이미지 URL을 붙여넣으세요..."
+                       class="w-full max-w-xs p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 text-center text-lg mb-3">
+
                 <div id="korean-label-image-drop-zone" class="relative w-48 h-48 flex items-center justify-center border-2 border-dashed border-gray-300 rounded-lg bg-gray-100 cursor-pointer hover:border-blue-500 transition duration-200">
                     <img id="korean-label-image-display" src="https://placehold.co/200x200/e0e0e0/000000?text=라벨사진" alt="한글 라벨 사진"
-                         class="w-full h-full object-contain rounded-lg"
-                         onerror="this.onerror=null;this.src='https://placehold.co/200x200/e0e0e0/000000?text=이미지없음';">
+                         class="w-full h-full object-contain rounded-lg cursor-pointer"
+                         onerror="this.onerror=null;this.src=this.dataset.placeholderSrc; this.nextElementSibling.classList.remove('hidden');"
+                         onclick="openImageInNewTab(this)">
                     <p class="absolute text-gray-500 text-sm pointer-events-none">여기에 이미지 드롭</p>
                 </div>
+                <button onclick="clearImage('korean_label')" class="mt-2 text-red-600 hover:text-red-800 text-sm font-semibold transition duration-200">이미지 지우기</button>
                 <label for="korean-label-image-description" class="block text-lg font-semibold text-gray-700 mt-4 mb-2">라벨 사진 설명 (100자 이내):</label>
                 <textarea id="korean-label-image-description" maxlength="100" rows="3"
                           placeholder="라벨 사진에 대한 설명을 100자 이내로 입력하세요."
@@ -200,15 +215,18 @@
             </div>
 
             <div class="flex flex-col items-center w-full md:w-1/3">
-                <label id="cooking-image-url-label" for="cooking-image-url-input" class="block text-xl font-semibold text-gray-700 mb-2">조리 사진 (URL 또는 드래그 & 드롭):</label>
-                <input type="url" id="cooking-image-url-input" placeholder="조리 사진 URL을 입력하거나 파일을 여기에 드롭하세요."
-                       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 text-center text-base mb-3">
+                <label for="cooking-image-url-input" class="block text-xl font-semibold text-gray-700 mb-2">조리 사진 URL (직접 입력):</label>
+                <input type="url" id="cooking-image-url-input" placeholder="이미지 URL을 붙여넣으세요..."
+                       class="w-full max-w-xs p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 text-center text-lg mb-3">
+
                 <div id="cooking-image-drop-zone" class="relative w-48 h-48 flex items-center justify-center border-2 border-dashed border-gray-300 rounded-lg bg-gray-100 cursor-pointer hover:border-blue-500 transition duration-200">
                     <img id="cooking-image-display" src="https://placehold.co/200x200/e0e0e0/000000?text=조리사진" alt="조리 사진"
-                         class="w-full h-full object-contain rounded-lg"
-                         onerror="this.onerror=null;this.src='https://placehold.co/200x200/e0e0e0/000000?text=이미지없음';">
+                         class="w-full h-full object-contain rounded-lg cursor-pointer"
+                         onerror="this.onerror=null;this.src=this.dataset.placeholderSrc; this.nextElementSibling.classList.remove('hidden');"
+                         onclick="openImageInNewTab(this)">
                     <p class="absolute text-gray-500 text-sm pointer-events-none">여기에 이미지 드롭</p>
                 </div>
+                <button onclick="clearImage('cooking')" class="mt-2 text-red-600 hover:text-red-800 text-sm font-semibold transition duration-200">이미지 지우기</button>
                 <label for="cooking-image-description" class="block text-lg font-semibold text-gray-700 mt-4 mb-2">조리 사진 설명 (100자 이내):</label>
                 <textarea id="cooking-image-description" maxlength="100" rows="3"
                           placeholder="조리 사진에 대한 설명을 100자 이내로 입력하세요."
@@ -303,7 +321,9 @@
         // Firebase SDK Imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, collection, query, onSnapshot, deleteDoc, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // getDoc 추가 확인
+        import { getFirestore, doc, setDoc, collection, query, onSnapshot, deleteDoc, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // Firebase Storage import is no longer needed as file upload is removed.
+        // import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js"; 
 
         // Firebase Initialization (using global variables provided by Canvas environment)
         // __firebase_config is a JSON string, so parse it.
@@ -324,7 +344,7 @@
         const appId = typeof __app_id !== 'undefined' ? __app_id : firebaseConfig.projectId;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        let app, db, auth, userId = null;
+        let app, db, auth, userId = null; // storage 변수 제거
 
         // Mermaid.js configuration (initialized after HTML load)
         mermaid.initialize({
@@ -345,6 +365,8 @@
         let selectedSterilizationType = '';
         let oneBatchAmount = '';
         let dailyCapacity = '';
+        let shelfLife = ''; // New state variable for shelf life
+        let conditions = ''; // New state variable for conditions
         let productImageUrl = '';
         let koreanLabelImageUrl = '';
         let cookingImageUrl = '';
@@ -358,15 +380,19 @@
         const productNameInput = document.getElementById('product-name-input');
         const factorySelect = document.getElementById('factory-select');
         const packagingTypeSelect = document.getElementById('packaging-type-select');
-        const packagingUnitSelect = document.getElementById('packaging-unit-select');
+        const packagingUnitInput = document.getElementById('packaging-unit-input'); // Changed from Select to Input
         const sterilizationTypeSelect = document.getElementById('sterilization-type-select');
         const oneBatchInput = document.getElementById('one-batch-input');
         const dailyCapacityInput = document.getElementById('daily-capacity-input');
-        const productImageUrlInput = document.getElementById('product-image-url-input');
+        const shelfLifeInput = document.getElementById('shelf-life-input'); // New DOM reference
+        const conditionsInput = document.getElementById('conditions-input'); // New DOM reference
+        // URL input references (file input references removed)
+        const productUrlInput = document.getElementById('product-image-url-input');
+        const koreanLabelUrlInput = document.getElementById('korean-label-image-url-input');
+        const cookingUrlInput = document.getElementById('cooking-image-url-input');
+
         const productImageDisplay = document.getElementById('product-image-display');
-        const koreanLabelImageUrlInput = document.getElementById('korean-label-image-url-input');
         const koreanLabelImageDisplay = document.getElementById('korean-label-image-display');
-        const cookingImageUrlInput = document.getElementById('cooking-image-url-input');
         const cookingImageDisplay = document.getElementById('cooking-image-display');
         const productImageDescriptionInput = document.getElementById('product-image-description');
         const koreanLabelImageDescriptionInput = document.getElementById('korean-label-image-description');
@@ -378,16 +404,13 @@
         const noProcessesMessage = document.getElementById('no-processes-message');
         const nodeColorInput = document.getElementById('node-color');
 
-        // New DOM references for image drop zones and their text overlays
+        // DOM references for image drop zones and their text overlays
         const productImageDropZone = document.getElementById('product-image-drop-zone');
         const koreanLabelImageDropZone = document.getElementById('korean-label-image-drop-zone');
         const cookingImageDropZone = document.getElementById('cooking-image-drop-zone');
         const productImageDropText = productImageDropZone.querySelector('p');
         const koreanLabelImageDropText = koreanLabelImageDropZone.querySelector('p');
         const cookingImageDropText = cookingImageDropZone.querySelector('p');
-        const productImageUrlLabel = document.getElementById('product-image-url-label');
-        const koreanLabelImageUrlLabel = document.getElementById('korean-label-image-url-label');
-        const cookingImageUrlLabel = document.getElementById('cooking-image-url-label');
 
         // New DOM reference for Sub-materials section
         const subMaterialsSection = document.getElementById('sub-materials-section');
@@ -414,6 +437,7 @@
                     app = initializeApp(firebaseConfig);
                     db = getFirestore(app);
                     auth = getAuth(app);
+                    // storage = getStorage(app); // Firebase Storage 초기화 (제거됨)
 
                     // Authenticate user
                     if (initialAuthToken) {
@@ -438,12 +462,14 @@
                     showMessage('Firebase 초기화 또는 인증 실패: ' + error.message + ' (Firebase 콘솔 설정을 확인해주세요!)', 'error');
                     db = null; // Prevent further Firebase operations
                     auth = null;
+                    // storage = null; // Set storage to null on error (제거됨)
                 }
             } else {
                 userIdDisplay.textContent = 'Firebase 설정 필요';
                 showMessage('Firebase 설정이 올바르지 않습니다. (Firebase Console에서 API 키를 확인하고 코드에 붙여넣어주세요!)', 'info');
                 db = null; // Prevent attempts to use db/auth
                 auth = null;
+                // storage = null;
             }
 
             // Load saved node color
@@ -471,23 +497,28 @@
         packagingTypeSelect.addEventListener('change', (event) => {
             selectedPackagingType = event.target.value;
             // Update packaging unit options based on selected packaging type
-            updatePackagingUnitOptions(selectedPackagingType);
+            updatePackagingUnitOptions(selectedPackagingType, packagingUnitInput.value); // Pass current unit value
             saveCurrentWorkingConfig(); // Auto-save
         });
 
-        // Event Listener for packaging unit select
-        packagingUnitSelect.addEventListener('change', (event) => {
-            selectedPackagingUnit = event.target.value;
-            // Add specific logic for 430g or 600g when selected
-            if (selectedPackagingUnit === '430g' || selectedPackagingUnit === '600g') {
-                oneBatchInput.value = '약 1,000kg ~1,500kg';
-                dailyCapacityInput.value = '약 8~10배치 16,000~20,000개';
-            } else if (selectedPackagingUnit === '200g' || selectedPackagingUnit === '240g') { // Added 200g, 240g logic
-                oneBatchInput.value = '500kg~700kg';
-                dailyCapacityInput.value = '5배치 10,000ea 이상';
-            }
-            else {
-                oneBatchInput.value = ''; // Clear if other unit is selected
+        // Event Listener for packaging unit input (changed from select)
+        packagingUnitInput.addEventListener('input', (event) => {
+            selectedPackagingUnit = event.target.value.trim(); // Get value from input
+
+            // Only auto-fill if the packaging type is '유리병'
+            if (selectedPackagingType === '유리병') {
+                if (selectedPackagingUnit === '430g' || selectedPackagingUnit === '600g') {
+                    oneBatchInput.value = '약 1,000kg ~1,500kg';
+                    dailyCapacityInput.value = '약 8~10배치 16,000~20,000개';
+                } else if (selectedPackagingUnit === '200g' || selectedPackagingUnit === '240g') {
+                    oneBatchInput.value = '500kg~700kg';
+                    dailyCapacityInput.value = '5배치 10,000ea 이상';
+                }
+                // If it's '유리병' but not a specific auto-fill unit, do nothing to oneBatch/dailyCapacity
+                // This ensures manually entered values for custom units are retained.
+            } else {
+                // If packaging type is NOT '유리병', these fields should be cleared
+                oneBatchInput.value = '';
                 dailyCapacityInput.value = '';
             }
             saveCurrentWorkingConfig(); // Auto-save
@@ -510,67 +541,66 @@
             saveCurrentWorkingConfig(); // Auto-save
         });
 
-        // Event Listeners for image URLs (adjusted to use updateImageDisplay)
-        productImageUrlInput.addEventListener('input', (event) => {
+        // New: Event Listeners for Shelf Life and Conditions inputs
+        shelfLifeInput.addEventListener('input', (event) => {
+            shelfLife = event.target.value.trim();
+            saveCurrentWorkingConfig();
+        });
+
+        conditionsInput.addEventListener('input', (event) => {
+            conditions = event.target.value.trim();
+            saveCurrentWorkingConfig();
+        });
+
+        // Event Listeners for URL input changes (file input listeners removed)
+        productUrlInput.addEventListener('input', (event) => {
             productImageUrl = event.target.value.trim();
-            updateImageDisplay(productImageDisplay, productImageUrlInput, productImageUrl, productImageDropText);
-            saveCurrentWorkingConfig(); // Auto-save
+            updateImageDisplay(productImageDisplay, productImageUrl, productImageDropText, productUrlInput);
+            saveCurrentWorkingConfig();
         });
-
-        koreanLabelImageUrlInput.addEventListener('input', (event) => { // New event listener for label image URL
+        koreanLabelUrlInput.addEventListener('input', (event) => {
             koreanLabelImageUrl = event.target.value.trim();
-            updateImageDisplay(koreanLabelImageDisplay, koreanLabelImageUrlInput, koreanLabelImageUrl, koreanLabelImageDropText);
-            saveCurrentWorkingConfig(); // Auto-save
+            updateImageDisplay(koreanLabelImageDisplay, koreanLabelImageUrl, koreanLabelImageDropText, koreanLabelUrlInput);
+            saveCurrentWorkingConfig();
         });
-
-        cookingImageUrlInput.addEventListener('input', (event) => {
+        cookingUrlInput.addEventListener('input', (event) => {
             cookingImageUrl = event.target.value.trim();
-            updateImageDisplay(cookingImageDisplay, cookingImageUrlInput, cookingImageUrl, cookingImageDropText);
-            saveCurrentWorkingConfig(); // Auto-save
+            updateImageDisplay(cookingImageDisplay, cookingImageUrl, cookingImageDropText, cookingUrlInput);
+            saveCurrentWorkingConfig();
         });
 
-        // Event Listeners for image descriptions
-        productImageDescriptionInput.addEventListener('input', (event) => {
-            productImageDescription = event.target.value;
-            saveCurrentWorkingConfig(); // Auto-save
-        });
+        // compressImage function removed as file upload is removed.
+        // handleFileChange function removed as file upload is removed.
+        // uploadImageToFirebaseStorage function removed as file upload is removed.
+        // handleImageDrop function removed as file drag-and-drop is removed.
 
-        koreanLabelImageDescriptionInput.addEventListener('input', (event) => { // New event listener for label image description
-            koreanLabelImageDescription = event.target.value;
-            saveCurrentWorkingConfig(); // Auto-save
-        });
-
-        cookingImageDescriptionInput.addEventListener('input', (event) => {
-            cookingImageDescription = event.target.value;
-            saveCurrentWorkingConfig(); // Auto-save
-        });
-
-        // Attach drag and drop listeners for image zones
-        productImageDropZone.addEventListener('dragover', handleImageDragOver);
-        productImageDropZone.addEventListener('dragleave', handleImageDragLeave);
-        productImageDropZone.addEventListener('drop', handleImageDrop);
-
-        koreanLabelImageDropZone.addEventListener('dragover', handleImageDragOver); // New drag drop listener for label image
-        koreanLabelImageDropZone.addEventListener('dragleave', handleImageDragLeave);
-        koreanLabelImageDropZone.addEventListener('drop', handleImageDrop);
-
-        cookingImageDropZone.addEventListener('dragover', handleImageDragOver);
-        cookingImageDropZone.addEventListener('dragleave', handleImageDragLeave);
-        cookingImageDropZone.addEventListener('drop', handleImageDrop);
-
-        // Ensure the image onerror handler is robust
-        productImageDisplay.onerror = function() {
-            this.src = this.dataset.placeholderSrc; // Fallback to stored placeholder
-            productImageDropText.classList.remove('hidden'); // Show text on error
-        };
-        koreanLabelImageDisplay.onerror = function() { // New onerror for label image
-            this.src = this.dataset.placeholderSrc;
-            koreanLabelImageDropText.classList.remove('hidden');
-        };
-        cookingImageDisplay.onerror = function() {
-            this.src = this.dataset.placeholderSrc; // Fallback to stored placeholder
-            cookingImageDropText.classList.remove('hidden'); // Show text on error
-        };
+        /**
+         * Clears an image from the UI and state.
+         * @param {string} imageType - 'product', 'korean_label', or 'cooking'.
+         */
+        async function clearImage(imageType) {
+            let targetImgElement, targetDropText, targetUrlInput; // targetFileInput 제거
+            if (imageType === 'product') {
+                targetImgElement = productImageDisplay;
+                targetDropText = productImageDropText;
+                targetUrlInput = productUrlInput;
+                productImageUrl = '';
+            } else if (imageType === 'korean_label') {
+                targetImgElement = koreanLabelImageDisplay;
+                targetDropText = koreanLabelImageDropText;
+                targetUrlInput = koreanLabelUrlInput;
+                koreanLabelImageUrl = '';
+            } else if (imageType === 'cooking') {
+                targetImgElement = cookingImageDisplay;
+                targetDropText = cookingImageDropText;
+                targetUrlInput = cookingUrlInput;
+                cookingImageUrl = '';
+            }
+            updateImageDisplay(targetImgElement, '', targetDropText, targetUrlInput); // Set to placeholder, clear URL input
+            // targetFileInput.value = ''; // 파일 입력 필드 클리어 제거
+            await saveCurrentWorkingConfig(); // Save the cleared state
+            showMessage(`${imageType} 이미지가 지워졌습니다.`, 'info');
+        }
 
 
         // Modal event listeners
@@ -862,50 +892,22 @@
         }
 
         /**
-         * Updates the options in the packaging unit select based on packaging type.
-         * Also controls the visibility of the sub-materials section and clears capacity fields if not 430g/600g.
+         * Updates the visibility of the sub-materials section and sets the packaging unit input value.
+         * This function no longer auto-fills capacity fields; that's handled by packagingUnitInput's listener.
          * @param {string} type - The selected packaging type.
-         * @param {string} unitToSelect - The packaging unit to select (for loading).
+         * @param {string} unitToSet - The packaging unit to set (for loading).
          */
-        function updatePackagingUnitOptions(type, unitToSelect = '') {
-            while (packagingUnitSelect.options.length > 1) {
-                packagingUnitSelect.remove(1);
-            }
-            selectedPackagingUnit = '';
-            packagingUnitSelect.value = '';
-
+        function updatePackagingUnitOptions(type, unitToSet = '') {
             if (type === '유리병') {
                 subMaterialsSection.classList.remove('hidden');
-                const units = ["200g", "240g", "430g", "600g"];
-                units.forEach(unit => {
-                    const option = document.createElement('option');
-                    option.value = unit;
-                    option.textContent = unit;
-                    packagingUnitSelect.appendChild(option);
-                });
-                if (unitToSelect && units.includes(unitToSelect)) {
-                    packagingUnitSelect.value = unitToSelect;
-                    selectedPackagingUnit = unitToSelect;
-                    if (unitToSelect === '430g' || unitToSelect === '600g') {
-                        oneBatchInput.value = '약 1,000kg ~1,500kg';
-                        dailyCapacityInput.value = '약 8~10배치 16,000~20,000개';
-                    } else if (unitToSelect === '200g' || unitToSelect === '240g') {
-                        oneBatchInput.value = '500kg~700kg';
-                        dailyCapacityInput.value = '5배치 10,000ea 이상';
-                    }
-                    else {
-                        oneBatchInput.value = '';
-                        dailyCapacityInput.value = '';
-                    }
-                } else {
-                    oneBatchInput.value = '';
-                    dailyCapacityInput.value = '';
-                }
             } else {
                 subMaterialsSection.classList.add('hidden');
+                // When type is not '유리병', clear capacity fields as they are specific to glass bottles
                 oneBatchInput.value = '';
                 dailyCapacityInput.value = '';
             }
+            packagingUnitInput.value = unitToSet; // Set the value of the input field
+            selectedPackagingUnit = unitToSet; // Update the internal state
         }
 
 
@@ -921,7 +923,9 @@
             if (selectedPackagingType) configNameParts.push(selectedPackagingType);
             if (selectedPackagingUnit) configNameParts.push(selectedPackagingUnit);
             if (selectedSterilizationType) configNameParts.push(selectedSterilizationType);
-            // Clean values for filename to avoid issues with special characters
+            // New: Add shelf life and conditions to config name
+            if (shelfLife) configNameParts.push(`유통${shelfLife}`);
+            if (conditions) configNameParts.push(`조건${conditions.replace(/\s/g, '')}`); // Remove spaces for filename
             const cleanOneBatch = oneBatchAmount.replace(/[^a-zA-Z0-9가-힣]/g, '').trim();
             const cleanDailyCapacity = dailyCapacity.replace(/[^a-zA-Z0-9가-힣]/g, '').trim();
             if (cleanOneBatch) configNameParts.push(`${cleanOneBatch}배치`);
@@ -950,6 +954,8 @@
                     selectedSterilizationType: selectedSterilizationType,
                     oneBatchAmount: oneBatchAmount,
                     dailyCapacity: dailyCapacity,
+                    shelfLife: shelfLife, // Save shelf life
+                    conditions: conditions, // Save conditions
                     productImageUrl: productImageUrl,
                     koreanLabelImageUrl: koreanLabelImageUrl,
                     cookingImageUrl: cookingImageUrl,
@@ -1027,6 +1033,8 @@
                     selectedSterilizationType: selectedSterilizationType,
                     oneBatchAmount: oneBatchAmount,
                     dailyCapacity: dailyCapacity,
+                    shelfLife: shelfLife, // Save shelf life
+                    conditions: conditions, // Save conditions
                     productImageUrl: productImageUrl,
                     koreanLabelImageUrl: koreanLabelImageUrl,
                     cookingImageUrl: cookingImageUrl,
@@ -1107,6 +1115,8 @@
             selectedSterilizationType = configToLoad.selectedSterilizationType || '';
             oneBatchAmount = configToLoad.oneBatchAmount || '';
             dailyCapacity = configToLoad.dailyCapacity || '';
+            shelfLife = configToLoad.shelfLife || ''; // Load shelf life
+            conditions = configToLoad.conditions || ''; // Load conditions
             productImageUrl = configToLoad.productImageUrl || '';
             koreanLabelImageUrl = configToLoad.koreanLabelImageUrl || '';
             cookingImageUrl = configToLoad.cookingImageUrl || '';
@@ -1116,16 +1126,19 @@
 
             productNameInput.value = productName;
             factorySelect.value = selectedFactory;
-            packagingTypeSelect.value = selectedPackagingType;
+            packagingTypeSelect.value = selectedPackagingType; // Set packaging type first
             sterilizationTypeSelect.value = selectedSterilizationType;
-            oneBatchInput.value = oneBatchAmount;
-            dailyCapacityInput.value = dailyCapacity;
+            oneBatchInput.value = oneBatchAmount; // Set saved batch amount
+            dailyCapacityInput.value = dailyCapacity; // Set saved daily capacity
+            shelfLifeInput.value = shelfLife; // Set shelf life input
+            conditionsInput.value = conditions; // Set conditions input
 
-            updatePackagingUnitOptions(selectedPackagingType, selectedPackagingUnit); // Correctly set packaging unit
+            // Call with the loaded packaging type and unit
+            updatePackagingUnitOptions(selectedPackagingType, selectedPackagingUnit); 
 
-            updateImageDisplay(productImageDisplay, productImageUrlInput, productImageUrl, productImageDropText);
-            updateImageDisplay(koreanLabelImageDisplay, koreanLabelImageUrlInput, koreanLabelImageUrl, koreanLabelImageDropText);
-            updateImageDisplay(cookingImageDisplay, cookingImageUrlInput, cookingImageUrl, cookingImageDropText);
+            updateImageDisplay(productImageDisplay, productImageUrl, productImageDropText, productUrlInput);
+            updateImageDisplay(koreanLabelImageDisplay, koreanLabelImageUrl, koreanLabelImageDropText, koreanLabelUrlInput);
+            updateImageDisplay(cookingImageDisplay, cookingImageUrl, cookingImageDropText, cookingUrlInput);
             productImageDescriptionInput.value = productImageDescription;
             koreanLabelImageDescriptionInput.value = koreanLabelImageDescription;
             cookingImageDescriptionInput.value = cookingImageDescription;
@@ -1145,6 +1158,8 @@
             selectedSterilizationType = '';
             oneBatchAmount = '';
             dailyCapacity = '';
+            shelfLife = ''; // Clear shelf life
+            conditions = ''; // Clear conditions
             productImageUrl = '';
             koreanLabelImageUrl = '';
             cookingImageUrl = '';
@@ -1158,11 +1173,16 @@
             sterilizationTypeSelect.value = '';
             oneBatchInput.value = '';
             dailyCapacityInput.value = '';
+            shelfLifeInput.value = ''; // Clear shelf life input
+            conditionsInput.value = ''; // Clear conditions input
 
-            updatePackagingUnitOptions(''); // Clear packaging unit options
-            updateImageDisplay(productImageDisplay, productImageUrlInput, '', productImageDropText);
-            updateImageDisplay(koreanLabelImageDisplay, koreanLabelImageUrlInput, '', koreanLabelImageDropText);
-            updateImageDisplay(cookingImageDisplay, cookingImageUrlInput, '', cookingImageDropText);
+            packagingUnitInput.value = ''; // Clear the input field
+            selectedPackagingUnit = ''; // Clear the internal state
+            subMaterialsSection.classList.add('hidden'); // Hide sub-materials section
+
+            updateImageDisplay(productImageDisplay, '', productImageDropText, productUrlInput);
+            updateImageDisplay(koreanLabelImageDisplay, '', koreanLabelImageDropText, koreanLabelUrlInput);
+            updateImageDisplay(cookingImageDisplay, '', cookingImageDropText, cookingUrlInput);
             productImageDescriptionInput.value = '';
             koreanLabelImageDescriptionInput.value = '';
             cookingImageDescriptionInput.value = '';
@@ -1237,9 +1257,8 @@
          */
         function exportFlowchartAsImage() {
             const elementsToHide = [
-                productImageUrlInput, cookingImageUrlInput, koreanLabelImageUrlInput,
+                // productFileInput, cookingFileInput, koreanLabelFileInput, // 파일 입력 필드 제거
                 productImageDropText, cookingImageDropText, koreanLabelImageDropText,
-                productImageUrlLabel, cookingImageUrlLabel, koreanLabelImageUrlLabel
             ];
             const memoTextareas = document.querySelectorAll('#process-list textarea');
 
@@ -1267,6 +1286,9 @@
                 if (selectedPackagingType) fileNameParts.push(selectedPackagingType);
                 if (selectedPackagingUnit) fileNameParts.push(selectedPackagingUnit);
                 if (selectedSterilizationType) fileNameParts.push(selectedSterilizationType);
+                // New: Add shelf life and conditions to filename
+                if (shelfLife) fileNameParts.push(`유통${shelfLife}`);
+                if (conditions) fileNameParts.push(`조건${conditions.replace(/\s/g, '')}`); // Remove spaces for filename
                 const cleanOneBatch = oneBatchAmount.replace(/[^a-zA-Z0-9가-힣]/g, '').trim();
                 const cleanDailyCapacity = dailyCapacity.replace(/[^a-zA-Z0-9가-힣]/g, '').trim();
                 if (cleanOneBatch) fileNameParts.push(`${cleanOneBatch}배치`);
@@ -1302,7 +1324,7 @@
             if (type === 'success') {
                 statusMessage.classList.add('text-green-600');
             } else if (type === 'error') {
-                statusMessage.classList.add('text-red-600');
+                statusStatus.classList.add('text-red-600');
             } else { // info
                 statusMessage.classList.add('text-blue-600');
             }
@@ -1314,18 +1336,37 @@
 
         /**
          * Helper function to update image display and visibility of drop text.
+         * Also stores the original image URL for click-to-view functionality.
          * @param {HTMLImageElement} imgElement - The <img> element to update.
-         * @param {HTMLInputElement} urlInput - The <input> element for the URL.
-         * @param {string} imageUrl - The new image URL (or Base64 string).
+         * @param {string} imageUrl - The new image URL.
          * @param {HTMLElement} dropTextElement - The <p> element for the drop text.
+         * @param {HTMLInputElement} urlInput - The <input type="url"> element to update.
          */
-        function updateImageDisplay(imgElement, urlInput, imageUrl, dropTextElement) {
+        function updateImageDisplay(imgElement, imageUrl, dropTextElement, urlInput) {
             imgElement.src = imageUrl || imgElement.dataset.placeholderSrc;
-            urlInput.value = imageUrl;
+            // Store the actual image URL in a data attribute
+            imgElement.dataset.originalSrc = imageUrl; 
+            if (urlInput) { // Ensure urlInput exists before trying to set its value
+                urlInput.value = imageUrl;
+            }
+
             if (imageUrl && imageUrl !== imgElement.dataset.placeholderSrc) {
                 dropTextElement.classList.add('hidden');
             } else {
                 dropTextElement.classList.remove('hidden');
+            }
+        }
+
+        /**
+         * Opens the original image URL in a new tab when the image element is clicked.
+         * @param {HTMLImageElement} imgElement - The clicked <img> element.
+         */
+        function openImageInNewTab(imgElement) {
+            const originalSrc = imgElement.dataset.originalSrc;
+            if (originalSrc && originalSrc !== imgElement.dataset.placeholderSrc) {
+                window.open(originalSrc, '_blank');
+            } else {
+                showMessage('표시할 이미지가 없습니다.', 'info');
             }
         }
 
@@ -1397,55 +1438,6 @@
                 li.classList.remove('border-blue-500', 'bg-blue-100');
             });
         }
-
-        // --- Drag and Drop Logic for Images ---
-
-        function handleImageDragOver(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            this.classList.add('border-blue-500', 'bg-blue-50');
-        }
-
-        function handleImageDragLeave(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            this.classList.remove('border-blue-500', 'bg-blue-50');
-        }
-
-        async function handleImageDrop(e) { // Make async to await Firestore save
-            e.preventDefault();
-            e.stopPropagation();
-            this.classList.remove('border-blue-500', 'bg-blue-50');
-
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                const file = files[0];
-                if (file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onload = async (event) => { // Make async to await Firestore save
-                        const imageDataUrl = event.target.result;
-                        if (this.id === 'product-image-drop-zone') {
-                            productImageUrl = imageDataUrl;
-                            updateImageDisplay(productImageDisplay, productImageUrlInput, productImageUrl, productImageDropText);
-                        } else if (this.id === 'korean-label-image-drop-zone') {
-                            koreanLabelImageUrl = imageDataUrl;
-                            updateImageDisplay(koreanLabelImageDisplay, koreanLabelImageUrlInput, koreanLabelImageUrl, koreanLabelImageDropText);
-                        } else if (this.id === 'cooking-image-drop-zone') {
-                            cookingImageUrl = imageDataUrl;
-                            updateImageDisplay(cookingImageDisplay, cookingImageUrlInput, cookingImageUrl, cookingImageDropText);
-                        }
-                        await saveCurrentWorkingConfig(); // Save to Firestore after image drop
-                        showMessage('이미지가 성공적으로 추가되었습니다.', 'success');
-                    };
-                    reader.onerror = () => {
-                        showMessage('이미지 파일을 읽는 데 실패했습니다.', 'error');
-                    };
-                    reader.readAsDataURL(file);
-                } else {
-                    showMessage('이미지 파일만 드롭할 수 있습니다.', 'error');
-                }
-            }
-        }
         
         // Expose functions to the global scope so they can be called from HTML attributes
         window.addProcess = addProcess;
@@ -1456,6 +1448,8 @@
         window.toggleProcess = toggleProcess;
         window.deleteProcess = deleteProcess;
         window.makeEditable = makeEditable; 
+        window.clearImage = clearImage; // Expose clearImage function
+        window.openImageInNewTab = openImageInNewTab; // Expose new function
     </script>
 </body>
 </html>
