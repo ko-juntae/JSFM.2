@@ -303,7 +303,7 @@
         // Firebase SDK Imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, collection, query, onSnapshot, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, collection, query, onSnapshot, deleteDoc, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // getDoc 추가 확인
 
         // Firebase Initialization (using global variables provided by Canvas environment)
         // __firebase_config is a JSON string, so parse it.
@@ -424,6 +424,10 @@
                     userId = auth.currentUser.uid;
                     userIdDisplay.textContent = userId;
                     showMessage('Firebase 인증 성공!', 'success');
+
+                    // 디버깅용 로그: db, auth, userId 객체 상태 확인
+                    console.log("Firebase 초기화 완료. db:", db, "auth:", auth, "userId:", userId);
+
 
                     // Load the current working configuration on app start
                     loadCurrentWorkingConfig();
@@ -1180,7 +1184,8 @@
             const configDocRef = doc(db, "artifacts", appId, "public", "data", "savedFlowchartConfigs", configName);
 
             try {
-                const docSnap = await getDoc(configDocRef); // Use getDoc, not onSnapshot for named loads
+                console.log("getDoc 함수 타입:", typeof getDoc); // 디버깅용 로그 추가
+                const docSnap = await getDoc(configDocRef);
                 if (docSnap.exists()) {
                     const configToLoad = docSnap.data();
                     applyConfigToUI(configToLoad);
