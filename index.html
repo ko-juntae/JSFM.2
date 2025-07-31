@@ -77,6 +77,11 @@
             제품 공정 플로우 차트 시뮬레이터
         </h1>
 
+        <div class="text-center text-sm text-gray-600 mb-4">
+            <span class="font-semibold">현재 사용자 ID:</span> <span id="user-id-display" class="font-mono text-blue-700 break-all">로딩 중...</span>
+            <p class="text-xs text-gray-500 mt-1">이 ID를 통해 Firestore에서 여러분의 데이터를 구분합니다.</p>
+        </div>
+
         <!-- Product Name, Factory Selection, Packaging Type, Packaging Unit, Sterilization Type, 1 Batch, Daily Capacity -->
         <div class="mb-8 text-center flex flex-col gap-4">
             <!-- Row 1: Product Name, Factory, Packaging Type -->
@@ -295,6 +300,32 @@
     </div>
 
     <script type="module">
+        // Firebase SDK Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, collection, query, onSnapshot, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Initialization (using global variables provided by Canvas environment)
+        // __firebase_config is a JSON string, so parse it.
+        // NOTE: If running this code locally (not in Canvas), you MUST replace this with your actual Firebase project config.
+        // Get your config from Firebase Console -> Project settings -> Your apps -> Web app -> Config
+        const firebaseConfig = {
+  apiKey: "AIzaSyCteISMGfhpktpQcYn-xe3qCYQ-AX-JJUI",
+  authDomain: "new-list-7a265.firebaseapp.com",
+  projectId: "new-list-7a265",
+  storageBucket: "new-list-7a265.firebasestorage.app",
+  messagingSenderId: "274215892545",
+  appId: "1:274215892545:web:a761188b074651b93e38c0",
+  measurementId: "G-LMW04J4XDK"
+};
+        // Canvas 환경이 아닌 로컬에서 실행할 때 필요한 앱 ID 및 초기 인증 토큰 (일반적으로 null)
+        // 이 `appId`는 Firestore 데이터 경로 `/artifacts/{appId}/public/data/`에 사용됩니다.
+        // Canvas 환경에서 실행 시 __app_id와 __initial_auth_token 변수가 자동으로 제공됩니다.
+        const appId = typeof __app_id !== 'undefined' ? __app_id : firebaseConfig.projectId;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, db, auth, userId = null;
+
         // Mermaid.js configuration (initialized after HTML load)
         mermaid.initialize({
             startOnLoad: true,
@@ -323,6 +354,7 @@
         let draggedItem = null; // Stores the item being dragged
 
         // DOM element references
+        const userIdDisplay = document.getElementById('user-id-display');
         const productNameInput = document.getElementById('product-name-input');
         const factorySelect = document.getElementById('factory-select');
         const packagingTypeSelect = document.getElementById('packaging-type-select');
@@ -368,15 +400,47 @@
         const cancelLoadConfigBtn = document.getElementById('cancel-load-config-btn');
         const deleteSelectedConfigBtn = document.getElementById('delete-selected-config-btn');
 
-        // Local Storage Key Prefix for multiple configurations
-        const LOCAL_STORAGE_PREFIX = 'flowchart_config_';
-
-        // Initial setup - Load from local storage on DOMContentLoaded
-        document.addEventListener('DOMContentLoaded', () => {
+        // Initial setup and Firebase authentication
+        document.addEventListener('DOMContentLoaded', async () => {
             // Store original placeholder src for fallback
             productImageDisplay.dataset.placeholderSrc = productImageDisplay.src;
             koreanLabelImageDisplay.dataset.placeholderSrc = koreanLabelImageDisplay.src;
             cookingImageDisplay.dataset.placeholderSrc = cookingImageDisplay.src;
+
+            // Initialize Firebase App
+            // Check if firebaseConfig is valid (not empty and not placeholder)
+            if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY" && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId) {
+                try {
+                    app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+
+                    // Authenticate user
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    userId = auth.currentUser.uid;
+                    userIdDisplay.textContent = userId;
+                    showMessage('Firebase 인증 성공!', 'success');
+
+                    // Load the current working configuration on app start
+                    loadCurrentWorkingConfig();
+
+                } catch (error) {
+                    console.error("Firebase 초기화 또는 인증 실패:", error);
+                    userIdDisplay.textContent = '인증 실패';
+                    showMessage('Firebase 초기화 또는 인증 실패: ' + error.message + ' (Firebase 콘솔 설정을 확인해주세요!)', 'error');
+                    db = null; // Prevent further Firebase operations
+                    auth = null;
+                }
+            } else {
+                userIdDisplay.textContent = 'Firebase 설정 필요';
+                showMessage('Firebase 설정이 올바르지 않습니다. (Firebase Console에서 API 키를 확인하고 코드에 붙여넣어주세요!)', 'info');
+                db = null; // Prevent attempts to use db/auth
+                auth = null;
+            }
 
             // Load saved node color
             const savedColor = localStorage.getItem('flowchartNodeColor');
@@ -385,74 +449,96 @@
                 updateFlowchartColors(savedColor);
             }
             // Initial render of process list (might be empty)
-            renderProcessList(); // Render empty or default state initially
+            renderProcessList();
         });
 
-        // Event Listeners for input changes (trigger auto-save is removed, now explicit save)
+        // Event Listeners for input changes (trigger auto-save)
         productNameInput.addEventListener('input', (event) => {
             productName = event.target.value.trim();
+            saveCurrentWorkingConfig(); // Auto-save
         });
 
         factorySelect.addEventListener('change', (event) => {
             selectedFactory = event.target.value;
+            saveCurrentWorkingConfig(); // Auto-save
         });
 
+        // Event Listener for packaging type select
         packagingTypeSelect.addEventListener('change', (event) => {
             selectedPackagingType = event.target.value;
-            updatePackagingUnitOptions(selectedPackagingType); // Update options first
+            // Update packaging unit options based on selected packaging type
+            updatePackagingUnitOptions(selectedPackagingType);
+            saveCurrentWorkingConfig(); // Auto-save
         });
 
+        // Event Listener for packaging unit select
         packagingUnitSelect.addEventListener('change', (event) => {
             selectedPackagingUnit = event.target.value;
+            // Add specific logic for 430g or 600g when selected
             if (selectedPackagingUnit === '430g' || selectedPackagingUnit === '600g') {
                 oneBatchInput.value = '약 1,000kg ~1,500kg';
                 dailyCapacityInput.value = '약 8~10배치 16,000~20,000개';
-            } else if (selectedPackagingUnit === '200g' || selectedPackagingUnit === '240g') {
+            } else if (selectedPackagingUnit === '200g' || selectedPackagingUnit === '240g') { // Added 200g, 240g logic
                 oneBatchInput.value = '500kg~700kg';
                 dailyCapacityInput.value = '5배치 10,000ea 이상';
-            } else {
-                oneBatchInput.value = '';
+            }
+            else {
+                oneBatchInput.value = ''; // Clear if other unit is selected
                 dailyCapacityInput.value = '';
             }
+            saveCurrentWorkingConfig(); // Auto-save
         });
 
+        // Event Listener for sterilization type select
         sterilizationTypeSelect.addEventListener('change', (event) => {
             selectedSterilizationType = event.target.value;
+            saveCurrentWorkingConfig(); // Auto-save
         });
 
+        // Event Listeners for 1 Batch and Daily Capacity inputs
         oneBatchInput.addEventListener('input', (event) => {
             oneBatchAmount = event.target.value.trim();
+            saveCurrentWorkingConfig(); // Auto-save
         });
 
         dailyCapacityInput.addEventListener('input', (event) => {
             dailyCapacity = event.target.value.trim();
+            saveCurrentWorkingConfig(); // Auto-save
         });
 
+        // Event Listeners for image URLs (adjusted to use updateImageDisplay)
         productImageUrlInput.addEventListener('input', (event) => {
             productImageUrl = event.target.value.trim();
             updateImageDisplay(productImageDisplay, productImageUrlInput, productImageUrl, productImageDropText);
+            saveCurrentWorkingConfig(); // Auto-save
         });
 
-        koreanLabelImageUrlInput.addEventListener('input', (event) => {
+        koreanLabelImageUrlInput.addEventListener('input', (event) => { // New event listener for label image URL
             koreanLabelImageUrl = event.target.value.trim();
             updateImageDisplay(koreanLabelImageDisplay, koreanLabelImageUrlInput, koreanLabelImageUrl, koreanLabelImageDropText);
+            saveCurrentWorkingConfig(); // Auto-save
         });
 
         cookingImageUrlInput.addEventListener('input', (event) => {
             cookingImageUrl = event.target.value.trim();
             updateImageDisplay(cookingImageDisplay, cookingImageUrlInput, cookingImageUrl, cookingImageDropText);
+            saveCurrentWorkingConfig(); // Auto-save
         });
 
+        // Event Listeners for image descriptions
         productImageDescriptionInput.addEventListener('input', (event) => {
             productImageDescription = event.target.value;
+            saveCurrentWorkingConfig(); // Auto-save
         });
 
-        koreanLabelImageDescriptionInput.addEventListener('input', (event) => {
+        koreanLabelImageDescriptionInput.addEventListener('input', (event) => { // New event listener for label image description
             koreanLabelImageDescription = event.target.value;
+            saveCurrentWorkingConfig(); // Auto-save
         });
 
         cookingImageDescriptionInput.addEventListener('input', (event) => {
             cookingImageDescription = event.target.value;
+            saveCurrentWorkingConfig(); // Auto-save
         });
 
         // Attach drag and drop listeners for image zones
@@ -460,7 +546,7 @@
         productImageDropZone.addEventListener('dragleave', handleImageDragLeave);
         productImageDropZone.addEventListener('drop', handleImageDrop);
 
-        koreanLabelImageDropZone.addEventListener('dragover', handleImageDragOver);
+        koreanLabelImageDropZone.addEventListener('dragover', handleImageDragOver); // New drag drop listener for label image
         koreanLabelImageDropZone.addEventListener('dragleave', handleImageDragLeave);
         koreanLabelImageDropZone.addEventListener('drop', handleImageDrop);
 
@@ -470,16 +556,16 @@
 
         // Ensure the image onerror handler is robust
         productImageDisplay.onerror = function() {
-            this.src = this.dataset.placeholderSrc;
-            productImageDropText.classList.remove('hidden');
+            this.src = this.dataset.placeholderSrc; // Fallback to stored placeholder
+            productImageDropText.classList.remove('hidden'); // Show text on error
         };
-        koreanLabelImageDisplay.onerror = function() {
+        koreanLabelImageDisplay.onerror = function() { // New onerror for label image
             this.src = this.dataset.placeholderSrc;
             koreanLabelImageDropText.classList.remove('hidden');
         };
         cookingImageDisplay.onerror = function() {
-            this.src = this.dataset.placeholderSrc;
-            cookingImageDropText.classList.remove('hidden');
+            this.src = this.dataset.placeholderSrc; // Fallback to stored placeholder
+            cookingImageDropText.classList.remove('hidden'); // Show text on error
         };
 
 
@@ -488,20 +574,20 @@
             loadConfigModal.classList.add('hidden');
         });
 
-        loadSelectedConfigBtn.addEventListener('click', () => {
+        loadSelectedConfigBtn.addEventListener('click', async () => {
             const configName = savedConfigsSelect.value;
             if (configName) {
-                loadConfiguration(configName);
+                await loadNamedConfiguration(configName); // Await loadConfiguration
                 loadConfigModal.classList.add('hidden');
             } else {
                 showMessage('불러올 구성을 선택해주세요.', 'error');
             }
         });
 
-        deleteSelectedConfigBtn.addEventListener('click', () => {
+        deleteSelectedConfigBtn.addEventListener('click', async () => {
             const configName = savedConfigsSelect.value;
             if (configName) {
-                deleteConfiguration(configName);
+                await deleteNamedConfiguration(configName); // Await deleteConfiguration
             } else {
                 showMessage('삭제할 구성을 선택해주세요.', 'error');
             }
@@ -526,6 +612,7 @@
 
                 const headerDiv = document.createElement('div');
                 headerDiv.className = 'flex items-center w-full';
+                // headerDiv.draggable = true; // Removed draggable from headerDiv
 
                 // Drag handle
                 const dragHandle = document.createElement('span');
@@ -578,7 +665,8 @@
                     const currentProcess = processes.find(p => p.id === process.id);
                     if (currentProcess) {
                         currentProcess.memo = event.target.value;
-                        // No auto-save on memo change for explicit save model
+                        // Save to Firestore immediately for real-time update
+                        saveCurrentWorkingConfig();
                     }
                 });
                 memoContainer.appendChild(memoTextarea);
@@ -614,21 +702,21 @@
             input.value = currentValue;
             input.className = 'flex-grow p-1 border border-blue-300 rounded-md focus:ring-1 focus:ring-blue-400';
 
-            input.onkeyup = (event) => {
+            input.onkeyup = async (event) => { // Make async to await Firestore save
                 if (event.key === 'Enter') {
                     if (field === 'name') {
-                        updateProcessName(id, input.value);
+                        await updateProcessName(id, input.value); // Await update
                     }
                     spanElement.textContent = input.value;
                     spanElement.replaceWith(spanElement);
                     renderProcessList();
                 }
             };
-            input.onblur = () => {
+            input.onblur = async () => { // Make async to await Firestore save
                 // Only update if value actually changed on blur
                 if (input.value.trim() !== currentValue) {
                      if (field === 'name') {
-                        updateProcessName(id, input.value);
+                        await updateProcessName(id, input.value); // Await update
                     }
                 }
                 spanElement.textContent = currentValue;
@@ -641,29 +729,31 @@
         }
 
         /**
-         * Updates the process name.
+         * Updates the process name and saves to Firestore.
          * @param {number} id - Process ID
          * @param {string} newName - New process name
          */
-        function updateProcessName(id, newName) {
+        async function updateProcessName(id, newName) {
             const process = processes.find(p => p.id === id);
             if (process) {
                 process.name = newName.trim();
                 renderFlowchart();
+                await saveCurrentWorkingConfig(); // Save to Firestore
             }
         }
 
         /**
-         * Adds a new process.
+         * Adds a new process and saves to Firestore.
          */
-        function addProcess() {
+        async function addProcess() {
             const name = newProcessInput.value.trim();
             if (name) {
                 const newId = processes.length > 0 ? Math.max(...processes.map(p => p.id)) + 1 : 1;
                 processes.push({ id: newId, name: name, selected: true, memo: '' });
                 newProcessInput.value = '';
-                console.log("공정 추가됨:", processes);
+                console.log("공정 추가됨:", processes); // Debugging log
                 renderProcessList();
+                await saveCurrentWorkingConfig(); // Save to Firestore
                 showMessage('공정이 추가되었습니다!', 'success');
             } else {
                 showMessage('공정 이름을 입력해주세요.', 'error');
@@ -671,24 +761,26 @@
         }
 
         /**
-         * Toggles the selected state of a process.
+         * Toggles the selected state of a process and saves to Firestore.
          * @param {number} id - Process ID
          */
-        function toggleProcess(id) {
+        async function toggleProcess(id) {
             const process = processes.find(p => p.id === id);
             if (process) {
                 process.selected = !process.selected;
                 renderFlowchart();
+                await saveCurrentWorkingConfig(); // Save to Firestore
             }
         }
 
         /**
-         * Deletes a process.
+         * Deletes a process and saves to Firestore.
          * @param {number} id - Process ID
          */
-        function deleteProcess(id) {
+        async function deleteProcess(id) {
             processes = processes.filter(p => p.id !== id);
             renderProcessList();
+            await saveCurrentWorkingConfig(); // Save to Firestore
             showMessage('공정이 삭제되었습니다.', 'success');
         }
 
@@ -812,18 +904,108 @@
             }
         }
 
+
         /**
-         * Saves the current configuration to local storage.
+         * Builds a unique config name based on current selections.
+         * This is used as a suggested name for explicit saves.
+         * @returns {string} The generated config name.
          */
-        function saveConfiguration() {
-            let configName = productName.trim();
-            if (!configName) {
-                configName = prompt('저장할 구성의 이름을 입력해주세요 (필수):');
-                if (!configName) {
-                    showMessage('구성 저장이 취소되었습니다. 이름을 입력해야 합니다.', 'info');
-                    return;
+        function generateSuggestedConfigName() {
+            let configNameParts = [];
+            if (selectedFactory) configNameParts.push(selectedFactory);
+            if (productName) configNameParts.push(productName);
+            if (selectedPackagingType) configNameParts.push(selectedPackagingType);
+            if (selectedPackagingUnit) configNameParts.push(selectedPackagingUnit);
+            if (selectedSterilizationType) configNameParts.push(selectedSterilizationType);
+            // Clean values for filename to avoid issues with special characters
+            const cleanOneBatch = oneBatchAmount.replace(/[^a-zA-Z0-9가-힣]/g, '').trim();
+            const cleanDailyCapacity = dailyCapacity.replace(/[^a-zA-Z0-9가-힣]/g, '').trim();
+            if (cleanOneBatch) configNameParts.push(`${cleanOneBatch}배치`);
+            if (cleanDailyCapacity) configNameParts.push(`${cleanDailyCapacity}캐파`);
+
+            return configNameParts.join('_').replace(/_+/g, '_').replace(/^_|_$/g, ''); // Remove duplicate/leading/trailing underscores
+        }
+
+        /**
+         * Saves the current working configuration to Firestore.
+         * This is called on every relevant input change for real-time sync.
+         * The document ID for this is fixed to the user's ID.
+         */
+        async function saveCurrentWorkingConfig() {
+            if (!db || !userId) {
+                return; // Firebase not initialized or user ID not available
+            }
+
+            try {
+                const currentConfig = {
+                    processes: processes,
+                    productName: productName,
+                    selectedFactory: selectedFactory,
+                    selectedPackagingType: selectedPackagingType,
+                    selectedPackagingUnit: selectedPackagingUnit,
+                    selectedSterilizationType: selectedSterilizationType,
+                    oneBatchAmount: oneBatchAmount,
+                    dailyCapacity: dailyCapacity,
+                    productImageUrl: productImageUrl,
+                    koreanLabelImageUrl: koreanLabelImageUrl,
+                    cookingImageUrl: cookingImageUrl,
+                    productImageDescription: productImageDescription,
+                    koreanLabelImageDescription: koreanLabelImageDescription,
+                    cookingImageDescription: cookingImageDescription,
+                    lastUpdated: new Date() // Add a timestamp
+                };
+                // Store in a specific document for the current user's working session
+                const configDocRef = doc(db, "artifacts", appId, "public", "data", "currentWorkingConfigs", userId);
+                await setDoc(configDocRef, currentConfig);
+                showMessage('현재 작업 내용이 자동으로 저장되었습니다.', 'success');
+            } catch (e) {
+                console.error("자동 저장 실패:", e);
+                // showMessage('자동 저장 실패: ' + e.message, 'error'); // Avoid spamming error for auto-save
+            }
+        }
+
+        /**
+         * Loads the current working configuration from Firestore on app start.
+         * Sets up a real-time listener for this document.
+         */
+        function loadCurrentWorkingConfig() {
+            if (!db || !userId) {
+                return;
+            }
+            const configDocRef = doc(db, "artifacts", appId, "public", "data", "currentWorkingConfigs", userId);
+            onSnapshot(configDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const configToLoad = docSnap.data();
+                    applyConfigToUI(configToLoad);
+                    showMessage('이전 작업 내용이 자동으로 불러와졌습니다.', 'info');
+                } else {
+                    showMessage('새로운 작업이 시작되었습니다. 저장된 내용이 없습니다.', 'info');
+                    // Optionally clear UI if no previous working config exists
+                    clearUI();
                 }
-                configName = configName.trim();
+            }, (error) => {
+                console.error("현재 작업 구성 로드 실패:", error);
+                showMessage('현재 작업 구성 로드에 실패했습니다: ' + error.message, 'error');
+            });
+        }
+
+
+        /**
+         * Saves the current configuration to Firestore as a named configuration (explicit save button).
+         */
+        async function saveConfiguration() {
+            if (!db || !userId) {
+                showMessage('Firebase가 초기화되지 않았거나 사용자 ID가 없습니다. 구성을 저장할 수 없습니다.', 'error');
+                return;
+            }
+
+            let configName = generateSuggestedConfigName();
+            const userProvidedName = prompt(`저장할 구성의 이름을 입력해주세요:`, configName); // Suggest a name
+            if (userProvidedName) {
+                configName = userProvidedName.trim();
+            } else {
+                showMessage('구성 저장이 취소되었습니다.', 'info');
+                return;
             }
 
             if (!configName) {
@@ -831,147 +1013,219 @@
                 return;
             }
 
-            const currentConfig = {
-                processes: processes,
-                productName: productName,
-                selectedFactory: selectedFactory,
-                selectedPackagingType: selectedPackagingType,
-                selectedPackagingUnit: selectedPackagingUnit,
-                selectedSterilizationType: selectedSterilizationType,
-                oneBatchAmount: oneBatchAmount,
-                dailyCapacity: dailyCapacity,
-                productImageUrl: productImageUrl,
-                koreanLabelImageUrl: koreanLabelImageUrl,
-                cookingImageUrl: cookingImageUrl,
-                productImageDescription: productImageDescription,
-                koreanLabelImageDescription: koreanLabelImageDescription,
-                cookingImageDescription: cookingImageDescription,
-                lastUpdated: new Date().toISOString() // ISO string for easy parsing
-            };
             try {
-                localStorage.setItem(LOCAL_STORAGE_PREFIX + configName, JSON.stringify(currentConfig));
-                showMessage(`'${configName}' 구성이 로컬에 저장되었습니다.`, 'success');
+                const currentConfig = {
+                    processes: processes,
+                    productName: productName,
+                    selectedFactory: selectedFactory,
+                    selectedPackagingType: selectedPackagingType,
+                    selectedPackagingUnit: selectedPackagingUnit,
+                    selectedSterilizationType: selectedSterilizationType,
+                    oneBatchAmount: oneBatchAmount,
+                    dailyCapacity: dailyCapacity,
+                    productImageUrl: productImageUrl,
+                    koreanLabelImageUrl: koreanLabelImageUrl,
+                    cookingImageUrl: cookingImageUrl,
+                    productImageDescription: productImageDescription,
+                    koreanLabelImageDescription: koreanLabelImageDescription,
+                    cookingImageDescription: cookingImageDescription,
+                    lastUpdated: new Date()
+                };
+
+                // Store in a separate collection for explicitly saved configurations
+                const configDocRef = doc(db, "artifacts", appId, "public", "data", "savedFlowchartConfigs", configName);
+                await setDoc(configDocRef, currentConfig);
+                showMessage(`'${configName}' 구성이 Firestore에 저장되었습니다.`, 'success');
             } catch (e) {
-                console.error("로컬 저장소 저장 실패:", e);
-                showMessage('로컬 저장소에 저장 실패: ' + e.message, 'error');
+                console.error("Firestore 저장 실패:", e);
+                showMessage('Firestore 저장에 실패했습니다: ' + e.message, 'error');
             }
         }
 
         /**
-         * Populates the modal with saved configurations from local storage.
+         * Populates the modal with explicitly saved configurations from Firestore.
          */
-        function showLoadConfigModal() {
+        async function showLoadConfigModal() {
+            if (!db || !userId) {
+                showMessage('Firebase가 초기화되지 않았거나 사용자 ID가 없습니다. 구성을 불러올 수 없습니다.', 'error');
+                return;
+            }
             savedConfigsSelect.innerHTML = '';
             const defaultOption = document.createElement('option');
             defaultOption.value = '';
             defaultOption.textContent = '-- 저장된 구성 선택 --';
             savedConfigsSelect.appendChild(defaultOption);
 
-            const savedKeys = [];
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key.startsWith(LOCAL_STORAGE_PREFIX)) {
-                    savedKeys.push(key.substring(LOCAL_STORAGE_PREFIX.length));
-                }
-            }
+            try {
+                // Only query the collection for explicitly saved configurations
+                const configsCollectionRef = collection(db, "artifacts", appId, "public", "data", "savedFlowchartConfigs");
+                const q = query(configsCollectionRef);
+                const querySnapshot = await getDocs(q);
 
-            if (savedKeys.length === 0) {
-                showMessage('저장된 구성이 없습니다.', 'info');
+                if (querySnapshot.empty) {
+                    showMessage('저장된 구성이 없습니다.', 'info');
+                    // Add a disabled option if no configs are saved
+                    const noConfigOption = document.createElement('option');
+                    noConfigOption.value = '';
+                    noConfigOption.textContent = '저장된 구성 없음';
+                    noConfigOption.disabled = true;
+                    savedConfigsSelect.appendChild(noConfigOption);
+                    loadSelectedConfigBtn.disabled = true;
+                    deleteSelectedConfigBtn.disabled = true;
+                } else {
+                    querySnapshot.forEach(docSnap => {
+                        const option = document.createElement('option');
+                        option.value = docSnap.id; // Document ID is the config name
+                        option.textContent = docSnap.id;
+                        savedConfigsSelect.appendChild(option);
+                    });
+                    loadSelectedConfigBtn.disabled = false;
+                    deleteSelectedConfigBtn.disabled = false;
+                }
+
+                loadConfigModal.classList.remove('hidden');
+            } catch (e) {
+                console.error("Firestore 구성 목록 불러오기 실패:", e);
+                showMessage('구성 목록 불러오기에 실패했습니다: ' + e.message, 'error');
+            }
+        }
+
+        /**
+         * Applies a loaded configuration object to the UI elements.
+         * @param {object} configToLoad - The configuration object to apply.
+         */
+        function applyConfigToUI(configToLoad) {
+            processes = configToLoad.processes ? configToLoad.processes.map(p => ({ ...p, memo: p.memo || '' })) : [];
+            productName = configToLoad.productName || '';
+            selectedFactory = configToLoad.selectedFactory || '';
+            selectedPackagingType = configToLoad.selectedPackagingType || '';
+            selectedPackagingUnit = configToLoad.selectedPackagingUnit || '';
+            selectedSterilizationType = configToLoad.selectedSterilizationType || '';
+            oneBatchAmount = configToLoad.oneBatchAmount || '';
+            dailyCapacity = configToLoad.dailyCapacity || '';
+            productImageUrl = configToLoad.productImageUrl || '';
+            koreanLabelImageUrl = configToLoad.koreanLabelImageUrl || '';
+            cookingImageUrl = configToLoad.cookingImageUrl || '';
+            productImageDescription = configToLoad.productImageDescription || '';
+            koreanLabelImageDescription = configToLoad.koreanLabelImageDescription || '';
+            cookingImageDescription = configToLoad.cookingImageDescription || '';
+
+            productNameInput.value = productName;
+            factorySelect.value = selectedFactory;
+            packagingTypeSelect.value = selectedPackagingType;
+            sterilizationTypeSelect.value = selectedSterilizationType;
+            oneBatchInput.value = oneBatchAmount;
+            dailyCapacityInput.value = dailyCapacity;
+
+            updatePackagingUnitOptions(selectedPackagingType, selectedPackagingUnit); // Correctly set packaging unit
+
+            updateImageDisplay(productImageDisplay, productImageUrlInput, productImageUrl, productImageDropText);
+            updateImageDisplay(koreanLabelImageDisplay, koreanLabelImageUrlInput, koreanLabelImageUrl, koreanLabelImageDropText);
+            updateImageDisplay(cookingImageDisplay, cookingImageUrlInput, cookingImageUrl, cookingImageDropText);
+            productImageDescriptionInput.value = productImageDescription;
+            koreanLabelImageDescriptionInput.value = koreanLabelImageDescription;
+            cookingImageDescriptionInput.value = cookingImageDescription;
+
+            renderProcessList();
+        }
+
+        /**
+         * Clears all UI elements to a default empty state.
+         */
+        function clearUI() {
+            processes = [];
+            productName = '';
+            selectedFactory = '';
+            selectedPackagingType = '';
+            selectedPackagingUnit = '';
+            selectedSterilizationType = '';
+            oneBatchAmount = '';
+            dailyCapacity = '';
+            productImageUrl = '';
+            koreanLabelImageUrl = '';
+            cookingImageUrl = '';
+            productImageDescription = '';
+            koreanLabelImageDescription = '';
+            cookingImageDescription = '';
+
+            productNameInput.value = '';
+            factorySelect.value = '';
+            packagingTypeSelect.value = '';
+            sterilizationTypeSelect.value = '';
+            oneBatchInput.value = '';
+            dailyCapacityInput.value = '';
+
+            updatePackagingUnitOptions(''); // Clear packaging unit options
+            updateImageDisplay(productImageDisplay, productImageUrlInput, '', productImageDropText);
+            updateImageDisplay(koreanLabelImageDisplay, koreanLabelImageUrlInput, '', koreanLabelImageDropText);
+            updateImageDisplay(cookingImageDisplay, cookingImageUrlInput, '', cookingImageDropText);
+            productImageDescriptionInput.value = '';
+            koreanLabelImageDescriptionInput.value = '';
+            cookingImageDescriptionInput.value = '';
+
+            renderProcessList(); // Render empty process list
+        }
+
+
+        /**
+         * Loads a specific named configuration from Firestore.
+         * @param {string} configName - The name of the configuration to load.
+         */
+        async function loadNamedConfiguration(configName) {
+            if (!db || !userId) {
+                showMessage('Firebase가 초기화되지 않았거나 사용자 ID가 없습니다. 구성을 불러올 수 없습니다.', 'error');
                 return;
             }
 
-            savedKeys.sort().forEach(configName => {
-                const option = document.createElement('option');
-                option.value = configName;
-                option.textContent = configName;
-                savedConfigsSelect.appendChild(option);
-            });
+            const configDocRef = doc(db, "artifacts", appId, "public", "data", "savedFlowchartConfigs", configName);
 
-            loadConfigModal.classList.remove('hidden');
-        }
-
-        /**
-         * Loads a specific configuration from local storage.
-         * @param {string} configName - The name of the configuration to load.
-         */
-        function loadConfiguration(configName) {
             try {
-                const savedConfig = localStorage.getItem(LOCAL_STORAGE_PREFIX + configName);
-                if (savedConfig) {
-                    const configToLoad = JSON.parse(savedConfig);
-
-                    processes = configToLoad.processes ? configToLoad.processes.map(p => ({ ...p, memo: p.memo || '' })) : [];
-                    productName = configToLoad.productName || '';
-                    selectedFactory = configToLoad.selectedFactory || '';
-                    selectedPackagingType = configToLoad.selectedPackagingType || '';
-                    selectedPackagingUnit = configToLoad.selectedPackagingUnit || '';
-                    selectedSterilizationType = configToLoad.selectedSterilizationType || '';
-                    oneBatchAmount = configToLoad.oneBatchAmount || '';
-                    dailyCapacity = configToLoad.dailyCapacity || '';
-                    productImageUrl = configToLoad.productImageUrl || '';
-                    koreanLabelImageUrl = configToLoad.koreanLabelImageUrl || '';
-                    cookingImageUrl = configToLoad.cookingImageUrl || '';
-                    productImageDescription = configToLoad.productImageDescription || '';
-                    koreanLabelImageDescription = configToLoad.koreanLabelImageDescription || '';
-                    cookingImageDescription = configToLoad.cookingImageDescription || '';
-
-                    productNameInput.value = productName;
-                    factorySelect.value = selectedFactory;
-                    packagingTypeSelect.value = selectedPackagingType;
-                    sterilizationTypeSelect.value = selectedSterilizationType;
-                    oneBatchInput.value = oneBatchAmount;
-                    dailyCapacityInput.value = dailyCapacity;
-
-                    updatePackagingUnitOptions(selectedPackagingType, selectedPackagingUnit); // Correctly set packaging unit
-
-                    updateImageDisplay(productImageDisplay, productImageUrlInput, productImageUrl, productImageDropText);
-                    updateImageDisplay(koreanLabelImageDisplay, koreanLabelImageUrlInput, koreanLabelImageUrl, koreanLabelImageDropText);
-                    updateImageDisplay(cookingImageDisplay, cookingImageUrlInput, cookingImageUrl, cookingImageDropText);
-                    productImageDescriptionInput.value = productImageDescription;
-                    koreanLabelImageDescriptionInput.value = koreanLabelImageDescription;
-                    cookingImageDescriptionInput.value = cookingImageDescription;
-
-                    renderProcessList();
-                    showMessage(`'${configName}' 구성을 불러왔습니다.`, 'success');
+                const docSnap = await getDoc(configDocRef); // Use getDoc, not onSnapshot for named loads
+                if (docSnap.exists()) {
+                    const configToLoad = docSnap.data();
+                    applyConfigToUI(configToLoad);
+                    showMessage(`'${configName}' 구성을 Firestore에서 불러왔습니다.`, 'success');
+                    // After loading a named config, auto-save this state as the new current working config
+                    await saveCurrentWorkingConfig();
                 } else {
-                    showMessage(`'${configName}' 구성을 찾을 수 없습니다.`, 'error');
+                    showMessage(`'${configName}' 구성을 찾을 수 없거나 삭제되었습니다.`, 'error');
                 }
             } catch (e) {
-                console.error("로컬 저장소 로드 실패:", e);
-                showMessage('로컬 저장소 로드에 실패했습니다: ' + e.message, 'error');
+                console.error("Firestore 데이터 로드 실패:", e);
+                showMessage('Firestore 데이터 로드에 실패했습니다: ' + e.message, 'error');
             }
         }
 
+
         /**
-         * Deletes a specific configuration from local storage.
+         * Deletes a specific named configuration from Firestore.
          * @param {string} configName - The name of the configuration to delete.
          */
-        function deleteConfiguration(configName) {
+        async function deleteNamedConfiguration(configName) {
+            if (!db || !userId) {
+                showMessage('Firebase가 초기화되지 않았거나 사용자 ID가 없습니다. 구성을 삭제할 수 없습니다.', 'error');
+                return;
+            }
+
             try {
-                localStorage.removeItem(LOCAL_STORAGE_PREFIX + configName);
-                showMessage(`'${configName}' 구성이 삭제되었습니다.`, 'success');
+                const configDocRef = doc(db, "artifacts", appId, "public", "data", "savedFlowchartConfigs", configName);
+                await deleteDoc(configDocRef);
+                showMessage(`'${configName}' 구성이 Firestore에서 삭제되었습니다.`, 'success');
                 showLoadConfigModal(); // Refresh the list in the modal
 
-                // If the deleted config was currently loaded, clear current UI state
-                if (productName === configName) { // Assuming productName is the current config name
-                    processes = []; productName = ''; selectedFactory = ''; selectedPackagingType = ''; selectedPackagingUnit = ''; selectedSterilizationType = '';
-                    oneBatchAmount = ''; dailyCapacity = ''; productImageUrl = ''; koreanLabelImageUrl = ''; cookingImageUrl = '';
-                    productImageDescription = ''; koreanLabelImageDescription = ''; cookingImageDescription = '';
-                    productNameInput.value = ''; factorySelect.value = ''; packagingTypeSelect.value = ''; sterilizationTypeSelect.value = '';
-                    oneBatchInput.value = ''; dailyCapacityInput.value = '';
-                    updatePackagingUnitOptions('');
-                    updateImageDisplay(productImageDisplay, productImageUrlInput, '', productImageDropText);
-                    updateImageDisplay(koreanLabelImageDisplay, koreanLabelImageUrlInput, '', koreanLabelImageDropText);
-                    updateImageDisplay(cookingImageDisplay, cookingImageUrlInput, '', cookingImageDropText);
-                    productImageDescriptionInput.value = ''; koreanLabelImageDescriptionInput.value = ''; cookingImageDescriptionInput.value = '';
-                    renderProcessList();
+                // If the deleted config was the one currently being edited, clear the UI
+                const currentIdentifier = generateSuggestedConfigName(); // Use suggested name for comparison
+                if (currentIdentifier === configName) {
+                    clearUI();
+                    await saveCurrentWorkingConfig(); // Save empty state as current working config
                 }
 
             } catch (e) {
-                console.error("로컬 저장소 삭제 실패:", e);
-                showMessage('로컬 저장소 삭제에 실패했습니다: ' + e.message, 'error');
+                console.error("Firestore 삭제 실패:", e);
+                showMessage('구성 삭제에 실패했습니다: ' + e.message, 'error');
             }
         }
+
 
         /**
          * Exports the entire content area as an image.
@@ -1106,7 +1360,7 @@
             }
         }
 
-        function handleDrop(e) {
+        async function handleDrop(e) { // Make async to await Firestore save
             e.preventDefault();
             const targetItem = this; // 'this' refers to the li element where the drop occurred
             targetItem.classList.remove('border-blue-500');
@@ -1127,6 +1381,7 @@
             processes.splice(targetIndex, 0, removed);
 
             renderProcessList();
+            await saveCurrentWorkingConfig(); // Save to Firestore after reordering
             showMessage('공정 순서가 변경되었습니다.', 'info');
         }
 
@@ -1152,7 +1407,7 @@
             this.classList.remove('border-blue-500', 'bg-blue-50');
         }
 
-        function handleImageDrop(e) {
+        async function handleImageDrop(e) { // Make async to await Firestore save
             e.preventDefault();
             e.stopPropagation();
             this.classList.remove('border-blue-500', 'bg-blue-50');
@@ -1162,7 +1417,7 @@
                 const file = files[0];
                 if (file.type.startsWith('image/')) {
                     const reader = new FileReader();
-                    reader.onload = (event) => {
+                    reader.onload = async (event) => { // Make async to await Firestore save
                         const imageDataUrl = event.target.result;
                         if (this.id === 'product-image-drop-zone') {
                             productImageUrl = imageDataUrl;
@@ -1174,6 +1429,7 @@
                             cookingImageUrl = imageDataUrl;
                             updateImageDisplay(cookingImageDisplay, cookingImageUrlInput, cookingImageUrl, cookingImageDropText);
                         }
+                        await saveCurrentWorkingConfig(); // Save to Firestore after image drop
                         showMessage('이미지가 성공적으로 추가되었습니다.', 'success');
                     };
                     reader.onerror = () => {
